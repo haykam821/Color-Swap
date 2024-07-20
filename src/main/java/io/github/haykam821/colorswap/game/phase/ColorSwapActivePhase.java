@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import eu.pb4.polymer.core.api.item.PolymerItemUtils;
+import eu.pb4.polymer.virtualentity.api.attachment.HolderAttachment;
 import io.github.haykam821.colorswap.Main;
 import io.github.haykam821.colorswap.game.ColorSwapConfig;
 import io.github.haykam821.colorswap.game.ColorSwapTimerBar;
@@ -57,6 +58,7 @@ public class ColorSwapActivePhase {
 	private final ColorSwapMap map;
 	private final ColorSwapConfig config;
 	private final List<PlayerRef> players;
+	private HolderAttachment guideText;
 	private int maxTicksUntilSwap;
 	private int ticksUntilSwap = 0;
 	private List<Block> lastSwapBlocks = new ArrayList<>();
@@ -66,14 +68,17 @@ public class ColorSwapActivePhase {
 	private final ColorSwapTimerBar timerBar;
 	private final PrismSpawner prismSpawner;
 	private int rounds = 0;
+	private int ticksElapsed = 0;
 	private int ticksUntilClose = -1;
 
-	public ColorSwapActivePhase(ServerWorld world, GameSpace gameSpace, ColorSwapMap map, ColorSwapConfig config, List<PlayerRef> players, GlobalWidgets widgets) {
+	public ColorSwapActivePhase(ServerWorld world, GameSpace gameSpace, ColorSwapMap map, ColorSwapConfig config, List<PlayerRef> players, HolderAttachment guideText, GlobalWidgets widgets) {
 		this.world = world;
 		this.gameSpace = gameSpace;
 		this.map = map;
 		this.config = config;
 		this.players = players;
+
+		this.guideText = guideText;
 
 		this.timerBar = new ColorSwapTimerBar(widgets);
 		this.maxTicksUntilSwap = this.getSwapTime();
@@ -94,14 +99,14 @@ public class ColorSwapActivePhase {
 		activity.deny(GameRuleType.MODIFY_INVENTORY);
 	}
 
-	public static void open(GameSpace gameSpace, ServerWorld world, ColorSwapMap map, ColorSwapConfig config) {
+	public static void open(GameSpace gameSpace, ServerWorld world, ColorSwapMap map, ColorSwapConfig config, HolderAttachment guideText) {
 		gameSpace.setActivity(activity -> {
 			GlobalWidgets widgets = GlobalWidgets.addTo(activity);
 
 			List<PlayerRef> players = gameSpace.getPlayers().stream().map(PlayerRef::of).collect(Collectors.toList());
 			Collections.shuffle(players);
 
-			ColorSwapActivePhase active = new ColorSwapActivePhase(world, gameSpace, map, config, players, widgets);
+			ColorSwapActivePhase active = new ColorSwapActivePhase(world, gameSpace, map, config, players, guideText, widgets);
 
 			ColorSwapActivePhase.setRules(activity);
 
@@ -121,9 +126,6 @@ public class ColorSwapActivePhase {
 		int index = 0;
 		this.singleplayer = this.players.size() == 1;
 
-		Vec3d center = this.map.getCenter();
-		double spawnRadius = this.map.getSpawnRadius();
-
 		for (PlayerRef playerRef : this.players) {
 			ServerPlayerEntity player = playerRef.getEntity(this.world);
 
@@ -134,10 +136,7 @@ public class ColorSwapActivePhase {
 				double theta = ((double) index / this.players.size()) * 2 * Math.PI;
 				float yaw = (float) theta * MathHelper.DEGREES_PER_RADIAN + 90;
 
-				double x = center.getX() + Math.cos(theta) * spawnRadius;
-				double z = center.getZ() + Math.sin(theta) * spawnRadius;
-
-				Vec3d spawnPos = new Vec3d(x, center.getY(), z);
+				Vec3d spawnPos = this.map.getSpawnPos(theta);
 				ColorSwapActivePhase.spawn(this.world, spawnPos, yaw, player);
 			}
 
@@ -301,6 +300,15 @@ public class ColorSwapActivePhase {
 	}
 
 	public void tick() {
+		this.ticksElapsed += 1;
+
+		if (this.guideText != null) {
+			if (this.ticksElapsed == this.config.getGuideTicks()) {
+				this.guideText.destroy();
+				this.guideText = null;
+			}
+		}
+
 		// Decrease ticks until game end to zero
 		if (this.isGameEnding()) {
 			if (this.ticksUntilClose == 0) {
@@ -374,7 +382,7 @@ public class ColorSwapActivePhase {
 	}
 
 	public PlayerOfferResult offerPlayer(PlayerOffer offer) {
-		return offer.accept(this.world, this.map.getCenter()).and(() -> {
+		return offer.accept(this.world, this.map.getSpectatorSpawnPos()).and(() -> {
 			this.updateRoundsExperienceLevel(offer.player());
 			this.setSpectator(offer.player());
 		});

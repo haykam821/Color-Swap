@@ -3,6 +3,7 @@ package io.github.haykam821.colorswap.game.map;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.gen.chunk.ChunkGenerator;
 import xyz.nucleoid.map_templates.BlockBounds;
@@ -20,8 +21,7 @@ public final class ColorSwapMap {
 		this.template = template;
 		this.platform = platform;
 
-		Vec3d center = this.platform.center();
-		this.center = new Vec3d(center.getX(), this.platform.max().getY() + 1, center.getZ());
+		this.center = this.createCenterPos(0, 0);
 
 		BlockPos size = this.platform.size();
 		int min = Math.min(size.getX(), size.getZ());
@@ -33,14 +33,27 @@ public final class ColorSwapMap {
 		return this.platform;
 	}
 
-	public Vec3d getCenter() {
-		return this.center;
+	// Spawn positions
+	public Vec3d getGuideTextPos() {
+		return this.createCenterPos(1.2, 0);
 	}
 
-	public double getSpawnRadius() {
-		return this.spawnRadius;
+	public Vec3d getWaitingSpawnPos() {
+		return this.createCenterPos(0, 4);
 	}
 
+	public Vec3d getSpawnPos(double theta) {
+		double x = this.center.getX() + Math.cos(theta) * spawnRadius;
+		double z = this.center.getZ() + Math.sin(theta) * spawnRadius;
+
+		return new Vec3d(x, this.center.getY(), z);
+	}
+
+	public Vec3d getSpectatorSpawnPos() {
+		return this.createCenterPos(3, 0);
+	}
+
+	// Elimination detection
 	public boolean isBelowPlatform(ServerPlayerEntity player) {
 		return player.getY() < this.platform.min().getY();
 	}
@@ -51,5 +64,14 @@ public final class ColorSwapMap {
 
 	public ChunkGenerator createGenerator(MinecraftServer server) {
 		return new TemplateChunkGenerator(server, this.template);
+	}
+
+	private Vec3d createCenterPos(double offsetY, double offsetZ) {
+		Vec3d center = this.getPlatform().centerTop();
+
+		double maxOffsetZ = this.platform.size().getZ() / 2 - 0.5;
+		double clampedOffsetZ = MathHelper.clamp(offsetZ, -maxOffsetZ, maxOffsetZ);
+
+		return new Vec3d(center.getX(), center.getY() + offsetY, center.getZ() - clampedOffsetZ);
 	}
 }

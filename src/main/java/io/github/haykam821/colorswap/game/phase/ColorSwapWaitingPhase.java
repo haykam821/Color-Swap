@@ -1,6 +1,10 @@
 package io.github.haykam821.colorswap.game.phase;
 
+import eu.pb4.polymer.virtualentity.api.ElementHolder;
+import eu.pb4.polymer.virtualentity.api.attachment.ChunkAttachment;
+import eu.pb4.polymer.virtualentity.api.attachment.HolderAttachment;
 import io.github.haykam821.colorswap.game.ColorSwapConfig;
+import io.github.haykam821.colorswap.game.map.ColorSwapGuideText;
 import io.github.haykam821.colorswap.game.map.ColorSwapMap;
 import io.github.haykam821.colorswap.game.map.ColorSwapMapBuilder;
 import net.minecraft.entity.damage.DamageSource;
@@ -29,6 +33,8 @@ public class ColorSwapWaitingPhase {
 	private final ColorSwapMap map;
 	private final ColorSwapConfig config;
 
+	private HolderAttachment guideText;
+
 	public ColorSwapWaitingPhase(GameSpace gameSpace, ServerWorld world, ColorSwapMap map, ColorSwapConfig config) {
 		this.gameSpace = gameSpace;
 		this.world = world;
@@ -52,11 +58,27 @@ public class ColorSwapWaitingPhase {
 			game.deny(GameRuleType.PVP);
 
 			// Listeners
+			game.listen(GameActivityEvents.ENABLE, waiting::enable);
 			game.listen(GameActivityEvents.TICK, waiting::tick);
 			game.listen(PlayerDeathEvent.EVENT, waiting::onPlayerDeath);
 			game.listen(GamePlayerEvents.OFFER, waiting::offerPlayer);
 			game.listen(GameActivityEvents.REQUEST_START, waiting::requestStart);
 		});
+	}
+
+	private void enable() {
+		// Spawn guide text
+		Vec3d guideTextPos = this.map.getGuideTextPos();
+
+		if (guideTextPos != null) {
+			Random random = this.world.getRandom();
+
+			boolean knockback = this.config.getNoKnockbackRounds() >= 0;
+			boolean prisms = this.config.getPrismConfig().isPresent();
+
+			ElementHolder holder = ColorSwapGuideText.createElementHolder(random, knockback, prisms);
+			this.guideText = ChunkAttachment.of(holder, world, guideTextPos);
+		}
 	}
 
 	private void tick() {
@@ -68,12 +90,12 @@ public class ColorSwapWaitingPhase {
 	}
 
 	private PlayerOfferResult offerPlayer(PlayerOffer offer) {
-		return offer.accept(this.world, this.map.getCenter())
+		return offer.accept(this.world, this.map.getWaitingSpawnPos())
 			.and(() -> offer.player().changeGameMode(GameMode.ADVENTURE));
 	}
 
 	public GameResult requestStart() {
-		ColorSwapActivePhase.open(this.gameSpace, this.world, this.map, this.config);
+		ColorSwapActivePhase.open(this.gameSpace, this.world, this.map, this.config, this.guideText);
 		return GameResult.ok();
 	}
 
@@ -84,7 +106,7 @@ public class ColorSwapWaitingPhase {
 	}
 
 	private void spawn(ServerPlayerEntity player) {
-		Vec3d spawnPos = map.getCenter();
+		Vec3d spawnPos = map.getWaitingSpawnPos();
 		ColorSwapActivePhase.spawn(this.world, spawnPos, 0, player);
 	}
 }
