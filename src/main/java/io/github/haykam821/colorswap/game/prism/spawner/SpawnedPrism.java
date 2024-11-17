@@ -8,13 +8,15 @@ import eu.pb4.polymer.virtualentity.api.attachment.ChunkAttachment;
 import eu.pb4.polymer.virtualentity.api.attachment.HolderAttachment;
 import eu.pb4.polymer.virtualentity.api.elements.ItemDisplayElement;
 import eu.pb4.polymer.virtualentity.api.elements.TextDisplayElement;
-import io.github.haykam821.colorswap.Main;
-import io.github.haykam821.colorswap.game.item.PrismItem;
+import io.github.haykam821.colorswap.game.component.PrismComponent;
+import io.github.haykam821.colorswap.game.item.ColorSwapItems;
 import io.github.haykam821.colorswap.game.phase.ColorSwapActivePhase;
 import io.github.haykam821.colorswap.game.prism.Prism;
 import io.github.haykam821.colorswap.game.prism.PrismConfig;
+import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.decoration.DisplayEntity.BillboardMode;
 import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.ItemConvertible;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.particle.ParticleEffect;
@@ -28,7 +30,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
-import xyz.nucleoid.plasmid.util.PlayerRef;
+import xyz.nucleoid.plasmid.api.util.PlayerRef;
 
 public class SpawnedPrism {
 	private static final Vec3d TEXT_OFFSET = new Vec3d(0, 1, 0);
@@ -36,7 +38,7 @@ public class SpawnedPrism {
 	private static final float ITEM_SCALE = 0.6f;
 	private static final float ITEM_SCALE_VARIANCE = 0.05f;
 
-	private static final ItemStack CRYSTAL_STACK = Prism.createGlintStack(Items.WHITE_STAINED_GLASS);
+	private static final ItemStack CRYSTAL_STACK = createGlintStack(Items.WHITE_STAINED_GLASS);
 	private static final float CRYSTAL_SCALE = 0.8f;
 
 	private static final ParticleEffect PARTICLE = ParticleTypes.SNOWFLAKE;
@@ -72,7 +74,10 @@ public class SpawnedPrism {
 		text.setBillboardMode(BillboardMode.CENTER);
 
 		// Item display element for prism display stack
-		this.item = new ItemDisplayElement(this.prism.createDisplayStack());
+		ItemStack stack = new ItemStack(ColorSwapItems.PRISM);
+		PrismComponent.set(stack, this.prism);
+
+		this.item = new ItemDisplayElement(stack);
 
 		this.item.setInterpolationDuration(1);
 		this.item.setLeftRotation(RotationAxis.POSITIVE_Y.rotation(MathHelper.PI));
@@ -105,15 +110,15 @@ public class SpawnedPrism {
 
 		PlayerInventory inventory = player.getInventory();
 
-		int count = inventory.count(Main.PRISM);
+		int count = inventory.count(ColorSwapItems.PRISM);
 		int maximumHeld = this.config.maximumHeld();
 
 		if (count >= maximumHeld) {
 			return false;
 		}
 
-		ItemStack stack = new ItemStack(Main.PRISM);
-		PrismItem.setPrism(stack, this.prism);
+		ItemStack stack = new ItemStack(ColorSwapItems.PRISM);
+		PrismComponent.set(stack, this.prism);
 
 		int slot = (9 - maximumHeld) / 2 + count;
 		inventory.setStack(slot, stack);
@@ -176,5 +181,11 @@ public class SpawnedPrism {
 	@Override
 	public String toString() {
 		return "SpawnedPrism{box=" + this.box + ", prism=" + this.prism + "}";
+	}
+
+	private static ItemStack createGlintStack(ItemConvertible item) {
+		ItemStack stack = new ItemStack(item);
+		stack.set(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
+		return stack;
 	}
 }

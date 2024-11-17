@@ -4,8 +4,8 @@ import io.github.haykam821.colorswap.game.phase.ColorSwapActivePhase;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
-import xyz.nucleoid.plasmid.game.common.GlobalWidgets;
-import xyz.nucleoid.plasmid.game.common.widget.BossBarWidget;
+import xyz.nucleoid.plasmid.api.game.common.GlobalWidgets;
+import xyz.nucleoid.plasmid.api.game.common.widget.BossBarWidget;
 
 public class ColorSwapTimerBar {
 	private Style titleStyle = RainbowTextColors.getInitialStyle();

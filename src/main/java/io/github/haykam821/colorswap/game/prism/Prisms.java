@@ -2,7 +2,7 @@ package io.github.haykam821.colorswap.game.prism;
 
 import io.github.haykam821.colorswap.Main;
 import net.minecraft.util.Identifier;
-import xyz.nucleoid.plasmid.registry.TinyRegistry;
+import xyz.nucleoid.plasmid.api.util.TinyRegistry;
 
 public final class Prisms {
 	public static final TinyRegistry<Prism> REGISTRY = TinyRegistry.create();
@@ -12,7 +12,7 @@ public final class Prisms {
 	}
 
 	private static void register(String path, Prism prism) {
-		Identifier id = new Identifier(Main.MOD_ID, path);
+		Identifier id = Main.identifier(path);
 		REGISTRY.register(id, prism);
 	}
 

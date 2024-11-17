@@ -3,6 +3,7 @@ package io.github.haykam821.colorswap.game;
 import java.util.Optional;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import io.github.haykam821.colorswap.game.map.ColorSwapMapConfig;
@@ -12,13 +13,13 @@ import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.intprovider.ConstantIntProvider;
 import net.minecraft.util.math.intprovider.IntProvider;
-import xyz.nucleoid.plasmid.game.common.config.PlayerConfig;
+import xyz.nucleoid.plasmid.api.game.common.config.WaitingLobbyConfig;
 
 public class ColorSwapConfig {
-	public static final Codec<ColorSwapConfig> CODEC = RecordCodecBuilder.create(instance -> {
+	public static final MapCodec<ColorSwapConfig> CODEC = RecordCodecBuilder.mapCodec(instance -> {
 		return instance.group(
 			ColorSwapMapConfig.CODEC.fieldOf("map").forGetter(ColorSwapConfig::getMapConfig),
-			PlayerConfig.CODEC.fieldOf("players").forGetter(ColorSwapConfig::getPlayerConfig),
+			WaitingLobbyConfig.CODEC.fieldOf("players").forGetter(ColorSwapConfig::getPlayerConfig),
 			PrismConfig.CODEC.optionalFieldOf("prisms").forGetter(ColorSwapConfig::getPrismConfig),
 			Codec.INT.optionalFieldOf("guide_ticks", SharedConstants.TICKS_PER_SECOND * 10).forGetter(ColorSwapConfig::getGuideTicks),
 			IntProvider.NON_NEGATIVE_CODEC.optionalFieldOf("ticks_until_close", ConstantIntProvider.create(SharedConstants.TICKS_PER_SECOND * 5)).forGetter(ColorSwapConfig::getTicksUntilClose),
@@ -30,7 +31,7 @@ public class ColorSwapConfig {
 	});
 
 	private final ColorSwapMapConfig mapConfig;
-	private final PlayerConfig playerConfig;
+	private final WaitingLobbyConfig playerConfig;
 	private final Optional<PrismConfig> prisms;
 	private final int guideTicks;
 	private final IntProvider ticksUntilClose;
@@ -39,7 +40,7 @@ public class ColorSwapConfig {
 	private final int eraseTime;
 	private final int noKnockbackRounds;
 
-	public ColorSwapConfig(ColorSwapMapConfig mapConfig, PlayerConfig playerConfig, Optional<PrismConfig> prisms, int guideTicks, IntProvider ticksUntilClose, SoundEvent swapSound, int swapTime, int eraseTime, int noKnockbackRounds) {
+	public ColorSwapConfig(ColorSwapMapConfig mapConfig, WaitingLobbyConfig playerConfig, Optional<PrismConfig> prisms, int guideTicks, IntProvider ticksUntilClose, SoundEvent swapSound, int swapTime, int eraseTime, int noKnockbackRounds) {
 		this.mapConfig = mapConfig;
 		this.playerConfig = playerConfig;
 		this.prisms = prisms;
@@ -55,7 +56,7 @@ public class ColorSwapConfig {
 		return this.mapConfig;
 	}
 
-	public PlayerConfig getPlayerConfig() {
+	public WaitingLobbyConfig getPlayerConfig() {
 		return this.playerConfig;
 	}
 
