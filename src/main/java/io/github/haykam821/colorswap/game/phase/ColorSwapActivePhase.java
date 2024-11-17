@@ -4,14 +4,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import eu.pb4.polymer.core.api.item.PolymerItemUtils;
 import eu.pb4.polymer.virtualentity.api.attachment.HolderAttachment;
-import io.github.haykam821.colorswap.Main;
 import io.github.haykam821.colorswap.game.ColorSwapConfig;
 import io.github.haykam821.colorswap.game.ColorSwapTimerBar;
-import io.github.haykam821.colorswap.game.item.PrismItem;
+import io.github.haykam821.colorswap.game.component.PrismComponent;
+import io.github.haykam821.colorswap.game.item.ColorSwapItems;
 import io.github.haykam821.colorswap.game.map.ColorSwapMap;
 import io.github.haykam821.colorswap.game.map.ColorSwapMapConfig;
 import io.github.haykam821.colorswap.game.prism.Prism;
@@ -32,22 +33,24 @@ import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
-import net.minecraft.util.TypedActionResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import net.minecraft.world.gen.stateprovider.BlockStateProvider;
-import xyz.nucleoid.plasmid.game.GameActivity;
-import xyz.nucleoid.plasmid.game.GameCloseReason;
-import xyz.nucleoid.plasmid.game.GameSpace;
-import xyz.nucleoid.plasmid.game.common.GlobalWidgets;
-import xyz.nucleoid.plasmid.game.event.GameActivityEvents;
-import xyz.nucleoid.plasmid.game.event.GamePlayerEvents;
-import xyz.nucleoid.plasmid.game.player.PlayerOffer;
-import xyz.nucleoid.plasmid.game.player.PlayerOfferResult;
-import xyz.nucleoid.plasmid.game.rule.GameRuleType;
-import xyz.nucleoid.plasmid.util.PlayerRef;
+import xyz.nucleoid.packettweaker.PacketContext;
+import xyz.nucleoid.plasmid.api.game.GameActivity;
+import xyz.nucleoid.plasmid.api.game.GameCloseReason;
+import xyz.nucleoid.plasmid.api.game.GameSpace;
+import xyz.nucleoid.plasmid.api.game.common.GlobalWidgets;
+import xyz.nucleoid.plasmid.api.game.event.GameActivityEvents;
+import xyz.nucleoid.plasmid.api.game.event.GamePlayerEvents;
+import xyz.nucleoid.plasmid.api.game.player.JoinAcceptor;
+import xyz.nucleoid.plasmid.api.game.player.JoinAcceptorResult;
+import xyz.nucleoid.plasmid.api.game.player.JoinOffer;
+import xyz.nucleoid.plasmid.api.game.rule.GameRuleType;
+import xyz.nucleoid.plasmid.api.util.PlayerRef;
+import xyz.nucleoid.stimuli.event.EventResult;
 import xyz.nucleoid.stimuli.event.item.ItemUseEvent;
 import xyz.nucleoid.stimuli.event.player.PlayerDamageEvent;
 import xyz.nucleoid.stimuli.event.player.PlayerDeathEvent;
@@ -103,7 +106,12 @@ public class ColorSwapActivePhase {
 		gameSpace.setActivity(activity -> {
 			GlobalWidgets widgets = GlobalWidgets.addTo(activity);
 
-			List<PlayerRef> players = gameSpace.getPlayers().stream().map(PlayerRef::of).collect(Collectors.toList());
+			List<PlayerRef> players = gameSpace.getPlayers()
+				.participants()
+				.stream()
+				.map(PlayerRef::of)
+				.collect(Collectors.toList());
+
 			Collections.shuffle(players);
 
 			ColorSwapActivePhase active = new ColorSwapActivePhase(world, gameSpace, map, config, players, guideText, widgets);
@@ -114,7 +122,8 @@ public class ColorSwapActivePhase {
 			activity.listen(GameActivityEvents.DISABLE, active::close);
 			activity.listen(GameActivityEvents.ENABLE, active::enable);
 			activity.listen(GameActivityEvents.TICK, active::tick);
-			activity.listen(GamePlayerEvents.OFFER, active::offerPlayer);
+			activity.listen(GamePlayerEvents.ACCEPT, active::onAcceptPlayer);
+			activity.listen(GamePlayerEvents.OFFER, JoinOffer::accept);
 			activity.listen(GamePlayerEvents.REMOVE, active::removePlayer);
 			activity.listen(PlayerDamageEvent.EVENT, active::onPlayerDamage);
 			activity.listen(PlayerDeathEvent.EVENT, active::onPlayerDeath);
@@ -182,7 +191,7 @@ public class ColorSwapActivePhase {
 		ColorSwapMapConfig mapConfig = this.config.getMapConfig();
 
  		for (ServerPlayerEntity player : this.gameSpace.getPlayers()) {
-			player.playSound(this.config.getSwapSound(), SoundCategory.BLOCKS, 1, 1.5f);
+			player.playSoundToPlayer(this.config.getSwapSound(), SoundCategory.BLOCKS, 1, 1.5f);
 		}
 
 		BlockPos.Mutable pos = new BlockPos.Mutable();
@@ -251,7 +260,7 @@ public class ColorSwapActivePhase {
 				PlayerInventory inventory = player.getInventory();
 
 				for (int slot = 0; slot < 9; slot++) {
-					if (!inventory.getStack(slot).isOf(Main.PRISM)) {
+					if (!inventory.getStack(slot).isOf(ColorSwapItems.PRISM)) {
 						inventory.setStack(slot, stack.copy());
 					}
 				}
@@ -381,10 +390,10 @@ public class ColorSwapActivePhase {
 		player.changeGameMode(GameMode.SPECTATOR);
 	}
 
-	public PlayerOfferResult offerPlayer(PlayerOffer offer) {
-		return offer.accept(this.world, this.map.getSpectatorSpawnPos()).and(() -> {
-			this.updateRoundsExperienceLevel(offer.player());
-			this.setSpectator(offer.player());
+	public JoinAcceptorResult onAcceptPlayer(JoinAcceptor acceptor) {
+		return acceptor.teleport(this.world, this.map.getSpectatorSpawnPos()).thenRunForEach(player -> {
+			this.updateRoundsExperienceLevel(player);
+			this.setSpectator(player);
 		});
 	}
 
@@ -397,8 +406,8 @@ public class ColorSwapActivePhase {
 		return this.rounds - 1 >= this.config.getNoKnockbackRounds();
 	}
 
-	private ActionResult onPlayerDamage(ServerPlayerEntity player, DamageSource source, float amount) {
-		return this.isKnockbackEnabled() ? ActionResult.SUCCESS : ActionResult.FAIL;
+	private EventResult onPlayerDamage(ServerPlayerEntity player, DamageSource source, float amount) {
+		return this.isKnockbackEnabled() ? EventResult.ALLOW : EventResult.DENY;
 	}
 
 	public void eliminate(ServerPlayerEntity eliminatedPlayer, boolean remove) {
@@ -424,36 +433,35 @@ public class ColorSwapActivePhase {
 		return this.ticksUntilClose >= 0;
 	}
 
-	public ActionResult onPlayerDeath(ServerPlayerEntity player, DamageSource source) {
+	public EventResult onPlayerDeath(ServerPlayerEntity player, DamageSource source) {
 		this.eliminate(player, true);
-		return ActionResult.SUCCESS;
+		return EventResult.ALLOW;
 	}
 
-	public TypedActionResult<ItemStack> onUseItem(ServerPlayerEntity player, Hand hand) {
+	public ActionResult onUseItem(ServerPlayerEntity player, Hand hand) {
 		ItemStack stack = player.getStackInHand(hand);
 
 		PlayerRef ref = PlayerRef.of(player);
-		if (this.players.contains(ref) && stack.isOf(Main.PRISM)) {
-			Prism prism = PrismItem.getPrism(stack);
+		if (this.players.contains(ref) && stack.isOf(ColorSwapItems.PRISM)) {
+			Prism prism = PrismComponent.get(stack);
 
 			if (prism != null && prism.activate(this, player)) {
 				ItemStack newStack = new ItemStack(this.swapBlock);
 				player.setStackInHand(hand, newStack);
 
-				return TypedActionResult.success(newStack);
+				return ActionResult.SUCCESS_SERVER.withNewHandStack(newStack);
 			}
 		}
 
-		if (PolymerItemUtils.getPolymerItemStack(stack, player).isOf(Items.ENDER_PEARL)) {
-			stack.increment(1);
-			player.getItemCooldownManager().set(Items.ENDER_PEARL, 0);
+		if (PolymerItemUtils.getPolymerItemStack(stack, PacketContext.create(player)).isOf(Items.ENDER_PEARL)) {
+			player.setStackInHand(hand, stack.copy());
 		}
 
-		return TypedActionResult.pass(stack);
+		return ActionResult.PASS;
 	}
 
 	public static void spawn(ServerWorld world, Vec3d spawnPos, float yaw, ServerPlayerEntity player) {
-		player.teleport(world, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ(), yaw, 0);
+		player.teleport(world, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ(), Set.of(), yaw, 0, false);
 
 		player.addStatusEffect(new StatusEffectInstance(StatusEffects.NIGHT_VISION, StatusEffectInstance.INFINITE, 0, true, false));
 		player.addStatusEffect(new StatusEffectInstance(StatusEffects.RESISTANCE, StatusEffectInstance.INFINITE, 127, true, false));
